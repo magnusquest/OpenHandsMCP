@@ -28,6 +28,27 @@ def start_openhands_agent(task: str, prompt: str = "create hello world python sc
         return f"Failed to create worktree or launch OpenHands for '{task}': {e}"
 
 @mcp.tool()
+def list_openhands_agents() -> str:
+    """
+    List all git worktrees that are currently being used by OpenHands agents.
+    Returns:
+        str: A list of active OpenHands agent worktrees.
+    """
+    try:
+        import os
+        worktree_dir = ".worktree"
+        if not os.path.exists(worktree_dir):
+            return "No OpenHands agents found. No worktrees exist."
+        
+        worktrees = [d for d in os.listdir(worktree_dir) if os.path.isdir(os.path.join(worktree_dir, d))]
+        if not worktrees:
+            return "No OpenHands agents found. No worktrees exist."
+        
+        return f"Active OpenHands agents (worktrees): {', '.join(worktrees)}"
+    except Exception as e:
+        return f"Failed to list OpenHands agents: {e}"
+
+@mcp.tool()
 def stop_openhands_agent(task: str) -> str:
     """
     Remove the git worktree and branch for the given task and simulate stopping the OpenHands agent.

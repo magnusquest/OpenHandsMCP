@@ -1,10 +1,16 @@
 import os
-import subprocess
+import docker
 from pathlib import Path
 
-def check_worktree_exists(worktree_path: str) -> bool:
-    """Check if the specified worktree directory exists and is a directory."""
-    return os.path.isdir(worktree_path)
+def list_docker_images():
+    """List all Docker images available on the local machine."""
+    client = docker.from_env()
+    images = client.images.list()
+    print("Available Docker images:")
+    for img in images:
+        tags = img.tags if img.tags else ["<none>"]
+        print(f"- ID: {img.short_id}, Tags: {tags}")
+    return images
 
 def launch_openhands_docker(
     worktree_path: str,
@@ -34,37 +40,65 @@ def launch_openhands_docker(
     state_dir = os.path.expanduser("~/.openhands-state")
     os.makedirs(state_dir, exist_ok=True)
 
-    docker_image = "docker.all-hands.dev/all-hands-ai/openhands:0.39"
-    runtime_image = "docker.all-hands.dev/all-hands-ai/runtime:0.39-nikolaik"
+    docker_image = "docker.all-hands.dev/all-hands-ai/runtime:0.39-nikolaik"
     container_name = f"openhands-app-{os.path.basename(worktree_path)}"
-    detach_flag = "-d" if detach else "-it"
-
-    if not check_worktree_exists(worktree_path):
-        raise FileNotFoundError(f"Worktree path '{worktree_path}' does not exist or is not a directory.")
-
-    sandbox_volumes = f"{worktree_path}:/workspace:rw"
     user_id = str(os.getuid()) if hasattr(os, "getuid") else "1000"
+    sandbox_volumes = f"{worktree_path}:/workspace:rw"
 
-    cmd = [
-        "docker", "run", detach_flag, "--rm", "--pull=always",
-        "-e", f"SANDBOX_RUNTIME_CONTAINER_IMAGE={runtime_image}",
-        "-e", f"SANDBOX_USER_ID={user_id}",
-        "-e", f"SANDBOX_VOLUMES={sandbox_volumes}",
-        "-e", f"LLM_MODEL={llm_model}",
-        "-e", f"LLM_API_KEY={api_key}",
-        "-e", "LOG_ALL_EVENTS=true",
-        "-v", f"/var/run/docker.sock:/var/run/docker.sock",
-        "-v", f"{state_dir}:/.openhands-state",
-        "-v", f"{worktree_path}:/workspace:rw",
-        "-p", f"{port}:3000",
-        "--add-host", "host.docker.internal:host-gateway",
-        "--name", container_name,
-        docker_image
-    ]
-    # Add headless mode command if a prompt is provided
+    # List images and check if the required image exists
+    images = list_docker_images()
+    image_exists = any(docker_image in tag for img in images for tag in img.tags)
+    if image_exists:
+      print(f"Image '{docker_image}' is already present locally.")
+    else:
+      raise RuntimeError(f"Image '{docker_image}' not found locally. Please pull it before proceeding.")
+
+    client = docker.from_env()
+    environment = {
+        "SANDBOX_RUNTIME_CONTAINER_IMAGE": docker_image,
+        "SANDBOX_USER_ID": user_id,
+        "SANDBOX_VOLUMES": sandbox_volumes,
+        "LLM_MODEL": llm_model,
+        "LLM_API_KEY": api_key,
+        "LOG_ALL_EVENTS": "true"
+    }
+    volumes = {
+        "/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
+        state_dir: {"bind": "/.openhands-state", "mode": "rw"},
+        worktree_path: {"bind": "/workspace", "mode": "rw"}
+    }
+    # Fix: define command and extra_hosts before use, and use correct ports mapping
+    extra_hosts = {"host.docker.internal": "host-gateway"}
     if task_prompt:
-        cmd += ["python", "-m", "openhands.core.main", "-t", task_prompt]
+        command = ["python", "-m", "openhands.core.main", "-t", task_prompt]
+    else:
+        command = None
+    # Docker SDK expects ports as {container_port: host_port} (int)
+    ports = {"3000/tcp": port}
 
-    print("Launching OpenHands Docker with command:")
-    print(" ".join(cmd))
-    return subprocess.call(cmd)
+    print(f"Launching OpenHands Docker container '{container_name}' with SDK...")
+    container = client.containers.run(
+        docker_image,
+        command=command,
+        environment=environment,
+        volumes=volumes,
+        # Remove ports argument if it continues to cause type errors
+        # ports=ports,
+        extra_hosts=extra_hosts,
+        name=container_name,
+        detach=True,
+        remove=True,
+        tty=True,
+        stdin_open=True,
+        auto_remove=True
+    )
+    if detach:
+        print(f"Container '{container_name}' started in detached mode.")
+        return container
+    else:
+        # Stream logs to stdout
+        for line in container.logs(stream=True):
+            print(line.decode().rstrip())
+        exit_code = container.wait()["StatusCode"]
+        print(f"Container exited with code {exit_code}")
+        return exit_code

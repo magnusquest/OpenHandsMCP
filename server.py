@@ -3,6 +3,7 @@ import sys
 from worktree_tools.create_worktree import create_worktree
 from worktree_tools.remove_worktree import remove_worktree
 from openhands_tools.launch_openhands_docker import launch_openhands_docker
+from worktree_tools.check_worktree_exists import check_worktree_exists
 
 mcp = FastMCP("OpenHands FastMCP Server")
 
@@ -17,8 +18,10 @@ def start_openhands_agent(task: str, prompt: str = "create hello world python sc
         str: A message indicating the worktree was created and the task was delegated.
     """
     try:
-        create_worktree(task)
         worktree_path = f".worktree/feature-{task}"
+        if check_worktree_exists(worktree_path):
+            return f"Worktree '{worktree_path}' already exists. Aborting to prevent overwrite."
+        create_worktree(task)
         launch_openhands_docker(worktree_path, task_prompt=prompt)
         return f"Worktree created and OpenHands agent launched for '{task}' with prompt: '{prompt}'."
     except Exception as e:
@@ -34,6 +37,9 @@ def stop_openhands_agent(task: str) -> str:
         str: A message indicating the worktree and branch were removed and the task was stopped.
     """
     try:
+        worktree_path = f".worktree/feature-{task}"
+        if not check_worktree_exists(worktree_path):
+            return f"Worktree '{worktree_path}' does not exist. Nothing to remove."
         remove_worktree(task)
         return f"Worktree and branch for '{task}' removed. Task stopped in the OpenHands agent."
     except Exception as e:

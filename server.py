@@ -2,13 +2,14 @@ from fastmcp import FastMCP
 import sys
 from worktree_tools.create_worktree import create_worktree
 from worktree_tools.remove_worktree import remove_worktree
+from openhands_tools.launch_openhands_docker import launch_openhands_docker
 
 mcp = FastMCP("OpenHands FastMCP Server")
 
 @mcp.tool()
 def start_openhands_agent(task: str) -> str:
     """
-    Create a git worktree for the given task and simulate delegating it to an OpenHands agent.
+    Create a git worktree for the given task and launch OpenHands agent in Docker to handle the task.
     Args:
         task (str): The description of the task/feature name to delegate to OpenHands.
     Returns:
@@ -16,9 +17,13 @@ def start_openhands_agent(task: str) -> str:
     """
     try:
         create_worktree(task)
-        return f"Worktree created and task '{task}' delegated to the OpenHands agent."
+        worktree_path = f".worktree/feature-{task}"
+        agent_prompt = "create hello world python script"
+        # Use headless mode: pass agent_prompt to launch_openhands_docker
+        launch_openhands_docker(worktree_path, task_prompt=agent_prompt)
+        return f"Worktree created and OpenHands agent launched for '{task}' with prompt: '{agent_prompt}'."
     except Exception as e:
-        return f"Failed to create worktree for '{task}': {e}"
+        return f"Failed to create worktree or launch OpenHands for '{task}': {e}"
 
 @mcp.tool()
 def stop_openhands_agent(task: str) -> str:

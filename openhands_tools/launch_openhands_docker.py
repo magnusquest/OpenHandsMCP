@@ -6,15 +6,23 @@ def check_worktree_exists(worktree_path: str) -> bool:
     """Check if the specified worktree directory exists and is a directory."""
     return os.path.isdir(worktree_path)
 
-def launch_openhands_docker(worktree_path: str, llm_model: str = "o4-mini", api_key_env: str = "OPENAI_API_KEY", port: int = 3000, detach: bool = False):
+def launch_openhands_docker(
+    worktree_path: str,
+    llm_model: str = "o4-mini",
+    api_key_env: str = "OPENAI_API_KEY",
+    port: int = 3000,
+    detach: bool = False,
+    task_prompt: str = ""
+):
     """
-    Launch OpenHands agent in Docker, mounting the given worktree as /workspace.
+    Launch OpenHands agent in Docker, mounting the given worktree as /workspace in headless mode.
     Args:
         worktree_path (str): Path to the git worktree to mount.
         llm_model (str): LLM model name (default: o4-mini).
         api_key_env (str): Name of the environment variable containing the API key.
         port (int): Port to expose (default: 3000).
         detach (bool): Run container in detached mode (default: False).
+        task_prompt (str): Task prompt for headless mode (default: empty string for none).
     Returns:
         int: Docker process return code.
     """
@@ -34,9 +42,14 @@ def launch_openhands_docker(worktree_path: str, llm_model: str = "o4-mini", api_
     if not check_worktree_exists(worktree_path):
         raise FileNotFoundError(f"Worktree path '{worktree_path}' does not exist or is not a directory.")
 
+    sandbox_volumes = f"{worktree_path}:/workspace:rw"
+    user_id = str(os.getuid()) if hasattr(os, "getuid") else "1000"
+
     cmd = [
         "docker", "run", detach_flag, "--rm", "--pull=always",
         "-e", f"SANDBOX_RUNTIME_CONTAINER_IMAGE={runtime_image}",
+        "-e", f"SANDBOX_USER_ID={user_id}",
+        "-e", f"SANDBOX_VOLUMES={sandbox_volumes}",
         "-e", f"LLM_MODEL={llm_model}",
         "-e", f"LLM_API_KEY={api_key}",
         "-e", "LOG_ALL_EVENTS=true",
@@ -48,10 +61,9 @@ def launch_openhands_docker(worktree_path: str, llm_model: str = "o4-mini", api_
         "--name", container_name,
         docker_image
     ]
-    # Add SANDBOX_VOLUMES for explicit workspace mount (recommended by docs)
-    sandbox_volumes = f"{worktree_path}:/workspace:rw"
-    cmd.insert(cmd.index("-e") + 1, f"SANDBOX_VOLUMES={sandbox_volumes}")
-    cmd.insert(cmd.index("-e") + 1, "-e")
+    # Add headless mode command if a prompt is provided
+    if task_prompt:
+        cmd += ["python", "-m", "openhands.core.main", "-t", task_prompt]
 
     print("Launching OpenHands Docker with command:")
     print(" ".join(cmd))

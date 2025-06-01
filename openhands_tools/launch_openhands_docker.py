@@ -4,6 +4,7 @@ from pathlib import Path
 
 def list_docker_images():
     """List all Docker images available on the local machine."""
+    print("Listing available Docker images...")
     client = docker.from_env()
     images = client.images.list()
     print("Available Docker images:")
@@ -37,7 +38,7 @@ def launch_openhands_docker(
         raise RuntimeError(f"{api_key_env} environment variable not set.")
 
     worktree_path = os.path.abspath(worktree_path)
-    state_dir = os.path.expanduser("~/.openhands-state")
+    state_dir = os.path.abspath(f"{worktree_path}/.openhands-state")
     os.makedirs(state_dir, exist_ok=True)
 
     docker_image = "docker.all-hands.dev/all-hands-ai/runtime:0.39-nikolaik"
@@ -96,9 +97,25 @@ def launch_openhands_docker(
         print(f"Container '{container_name}' started in detached mode.")
         return container
     else:
-        # Stream logs to stdout
-        for line in container.logs(stream=True):
-            print(line.decode().rstrip())
+        # Stream logs to stdout, buffering to print full lines
+        buffer = ""
+        for chunk in container.logs(stream=True):
+            text = chunk.decode(errors="replace")
+            buffer += text
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                print(line)
+        if buffer:
+            print(buffer)
         exit_code = container.wait()["StatusCode"]
         print(f"Container exited with code {exit_code}")
         return exit_code
+
+### main script to test the function
+if __name__ == "__main__":
+    # Example usage
+    worktree_path = "./.worktree/feature-test"  # Replace with your actual worktree path
+    try:
+        launch_openhands_docker(worktree_path, task_prompt="Create a simple Python script")
+    except Exception as e:
+        print(f"Error launching OpenHands Docker: {e}")

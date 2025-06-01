@@ -40,6 +40,12 @@ To run the FastMCP server with SSE transport and inspect it using the MCP Inspec
    uv run fastmcp dev server.py
    ```
 
+3. Quickstart command
+
+   ```sh
+   uv run fastmcp run server.py --transport sse --host 0.0.0.0 --port 8000 & uv run fastmcp dev server.py
+   ```
+
 - The Inspector will connect to your running server and provide a web-based interface for inspection and testing.
 - If you see 404 errors on /sse, ensure you are running the server with `--transport sse`.
 

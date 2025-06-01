@@ -40,3 +40,6 @@ htmlcov/
 
 # AI
 .ai/*
+
+# Worktree
+.worktree/*

@@ -42,3 +42,18 @@ To run the FastMCP server with SSE transport and inspect it using the MCP Inspec
 
 - The Inspector will connect to your running server and provide a web-based interface for inspection and testing.
 - If you see 404 errors on /sse, ensure you are running the server with `--transport sse`.
+
+## Example: Using the MCP Client
+
+You can interact with this FastMCP server programmatically using the MCP client:
+
+```python
+from fastmcp import Client
+
+async def main():
+    async with Client("server.py") as client:
+        tools = await client.list_tools()
+        print(f"Available tools: {tools}")
+        result = await client.call_tool("start_openhands_agent", {"task": "my-feature"})
+        print(f"Result: {result.text}")
+```

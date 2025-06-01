@@ -24,6 +24,10 @@ This project scaffolds a FastMCP-based Model Context Protocol (MCP) server desig
 - Integrate external APIs or services
 - Prototype and test new agent capabilities
 
+## Setup
+
+TBD
+
 ## Running with SSE and MCP Inspector
 
 To run the FastMCP server with SSE transport and inspect it using the MCP Inspector:
@@ -38,12 +42,6 @@ To run the FastMCP server with SSE transport and inspect it using the MCP Inspec
 
    ```sh
    uv run fastmcp dev server.py
-   ```
-
-3. Quickstart command
-
-   ```sh
-   uv run fastmcp run server.py --transport sse --host 0.0.0.0 --port 8000 & uv run fastmcp dev server.py
    ```
 
 - The Inspector will connect to your running server and provide a web-based interface for inspection and testing.
